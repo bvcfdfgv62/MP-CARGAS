@@ -127,7 +127,7 @@ export default function PerfilScreen() {
         </View>
 
         <View style={styles.menu}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Em breve', 'Seus dados já estão sincronizados com o RH.')}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.menuIcon, { backgroundColor: '#1C1C1C' }]}>
                 <MaterialCommunityIcons name="shield-account" size={22} color="#FFD100" />
@@ -137,7 +137,7 @@ export default function PerfilScreen() {
             <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Notificações', 'Você não tem novos avisos no momento.')}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.menuIcon, { backgroundColor: '#1C1C1C' }]}>
                 <MaterialCommunityIcons name="bell" size={22} color="#FFD100" />

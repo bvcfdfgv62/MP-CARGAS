@@ -19,10 +19,8 @@ export default function HomeScreen() {
     });
   }, []);
 
-  const handleStartDelivery = () => {
-    clearDelivery();
-    // Navega para a primeira etapa do fluxo de entrega
-    router.push('/(app)/delivery/nota');
+  const handleGoToDeliveries = () => {
+    router.push('/(app)/(tabs)/entregas');
   };
 
   return (
@@ -43,17 +41,12 @@ export default function HomeScreen() {
       <View style={styles.content}>
         <View style={styles.card}>
           <MaterialCommunityIcons name="package-variant-closed" size={48} color="#FFD100" style={styles.cardIcon} />
-          <Text style={styles.cardTitle}>Nova Entrega</Text>
-          <Text style={styles.cardSubtitle}>Escaneie o QR Code da Nota Fiscal</Text>
+          <Text style={styles.cardTitle}>Suas Entregas</Text>
+          <Text style={styles.cardSubtitle}>Acesse a aba de rotas para escanear ou pesquisar uma Nota Fiscal</Text>
 
-          <TouchableOpacity style={styles.btnPrimary} onPress={handleStartDelivery}>
-            <MaterialCommunityIcons name="qrcode-scan" size={24} color="#111" />
-            <Text style={styles.btnPrimaryText}>ESCANEAR QR CODE</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.btnSecondary} onPress={handleStartDelivery}>
-            <MaterialCommunityIcons name="pencil" size={24} color="#FFF" />
-            <Text style={styles.btnSecondaryText}>DIGITAR NOTA FISCAL</Text>
+          <TouchableOpacity style={styles.btnPrimary} onPress={handleGoToDeliveries}>
+            <MaterialCommunityIcons name="format-list-bulleted" size={24} color="#111" />
+            <Text style={styles.btnPrimaryText}>VER MINHAS ROTAS</Text>
           </TouchableOpacity>
         </View>
       </View>
