@@ -180,6 +180,27 @@ export default function AdminDashboardMobile() {
     }
   };
 
+  const handleDeleteDriver = async (id: string) => {
+    setErrorMsg(''); setSuccessMsg('');
+    const deleteAction = async () => {
+      setLoading(true);
+      try {
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        setLoading(false);
+        if (error) setErrorMsg(`Falha ao excluir motorista: ${error.message}`);
+        else { setSuccessMsg('Motorista excluído com sucesso!'); fetchData(); }
+      } catch (err: any) {
+        setLoading(false);
+        setErrorMsg(`Erro interno: ${err.message}`);
+      }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm && window.confirm('Tem certeza que deseja EXCLUIR este motorista?')) deleteAction();
+    } else {
+      Alert.alert('Confirmar Exclusão', 'Apagar motorista?', [{text: 'Cancelar', style: 'cancel'}, {text: 'Apagar', style: 'destructive', onPress: deleteAction}]);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER - Largura total, mas com conteúdo centralizado */}
@@ -370,6 +391,9 @@ export default function AdminDashboardMobile() {
                       <Text style={styles.driverName}>{m.name}</Text>
                       <Text style={styles.driverCpf}>CPF: {m.cpf}</Text>
                     </View>
+                    <TouchableOpacity style={styles.btnExcluir} onPress={() => handleDeleteDriver(m.id)}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={20} color="#D32F2F" />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
