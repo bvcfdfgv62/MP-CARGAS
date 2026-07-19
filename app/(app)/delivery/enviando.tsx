@@ -42,12 +42,12 @@ export default function EnviandoScreen() {
 
         // Passo 2: Enviando Fotos
         const timestamp = Date.now();
-        const nfPath = `${store.nf}_${timestamp}`;
+        const nfFolder = `NF_${store.nf || 'SEM_NUMERO'}`;
         
         const [urlE, urlN, urlP] = await Promise.all([
-          uploadPhoto(store.fotoEtiqueta, `etiquetas/${nfPath}.jpg`),
-          uploadPhoto(store.fotoNf, `nfs/${nfPath}.jpg`),
-          uploadPhoto(store.fotoProduto, `produtos/${nfPath}.jpg`)
+          uploadPhoto(store.fotoEtiqueta, `${nfFolder}/etiqueta_${timestamp}.jpg`),
+          uploadPhoto(store.fotoNf, `${nfFolder}/nota_${timestamp}.jpg`),
+          uploadPhoto(store.fotoProduto, `${nfFolder}/produto_${timestamp}.jpg`)
         ]);
         
         setStep(3);
