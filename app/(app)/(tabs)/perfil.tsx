@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -68,30 +68,53 @@ export default function PerfilScreen() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
-      Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+      if (Platform.OS === 'web') {
+        window.alert('Sucesso: Foto de perfil atualizada!');
+      } else {
+        Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+      }
     } catch (error: any) {
-      Alert.alert('Erro', 'Não foi possível atualizar a foto: ' + error.message);
+      if (Platform.OS === 'web') {
+        window.alert('Erro: Não foi possível atualizar a foto: ' + error.message);
+      } else {
+        Alert.alert('Erro', 'Não foi possível atualizar a foto: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Sair',
-      'Tem certeza que deseja sair da sua conta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Sair', 
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/(auth)/login');
+    if (Platform.OS === 'web') {
+      if (window.confirm('Tem certeza que deseja sair da sua conta?')) {
+        await supabase.auth.signOut();
+        router.replace('/(auth)/login');
+      }
+    } else {
+      Alert.alert(
+        'Sair',
+        'Tem certeza que deseja sair da sua conta?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Sair', 
+            style: 'destructive',
+            onPress: async () => {
+              await supabase.auth.signOut();
+              router.replace('/(auth)/login');
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  const showMockAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title} - ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
   };
 
   return (
@@ -127,7 +150,7 @@ export default function PerfilScreen() {
         </View>
 
         <View style={styles.menu}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Em breve', 'Seus dados já estão sincronizados com o RH.')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => showMockAlert('Em breve', 'Seus dados já estão sincronizados com o RH.')}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.menuIcon, { backgroundColor: '#1C1C1C' }]}>
                 <MaterialCommunityIcons name="shield-account" size={22} color="#FFD100" />
@@ -137,7 +160,7 @@ export default function PerfilScreen() {
             <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Notificações', 'Você não tem novos avisos no momento.')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => showMockAlert('Notificações', 'Você não tem novos avisos no momento.')}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.menuIcon, { backgroundColor: '#1C1C1C' }]}>
                 <MaterialCommunityIcons name="bell" size={22} color="#FFD100" />
