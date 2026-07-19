@@ -128,16 +128,16 @@ export default function EnviandoScreen() {
     return (
       <View style={styles.stepItem}>
         {isDone ? (
-          <MaterialCommunityIcons name="check-circle" size={24} color="#FFD100" />
+          <MaterialCommunityIcons name="check-circle" size={24} color="#16A34A" />
         ) : isActive ? (
           <ActivityIndicator color="#FFD100" size={24} />
         ) : (
-          <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={24} color="#333" />
+          <MaterialCommunityIcons name="circle-outline" size={24} color="#333" />
         )}
         <View style={styles.stepTextContainer}>
           <Text style={[styles.stepText, (isDone || isActive) && styles.stepTextActive]}>{text}</Text>
-          {isDone && <Text style={styles.stepSubtext}>Concluído</Text>}
-          {isActive && <Text style={styles.stepSubtext}>Em andamento</Text>}
+          {isDone && <Text style={styles.stepSubtextDone}>Concluído</Text>}
+          {isActive && <Text style={styles.stepSubtext}>Em andamento...</Text>}
         </View>
       </View>
     );
@@ -146,37 +146,50 @@ export default function EnviandoScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <MaterialCommunityIcons name="cloud-upload-outline" size={96} color="#FFD100" />
+        {step >= 4 ? (
+          <MaterialCommunityIcons name="check-decagram" size={100} color="#16A34A" />
+        ) : (
+          <MaterialCommunityIcons name="cloud-upload-outline" size={100} color="#FFD100" />
+        )}
       </View>
       
-      <Text style={styles.title}>Enviando entrega...</Text>
-      <Text style={styles.subtitle}>Isso pode levar alguns segundos</Text>
+      <Text style={styles.title}>{step >= 4 ? 'Sucesso!' : 'Sincronizando...'}</Text>
+      <Text style={styles.subtitle}>
+        {step >= 4 ? 'Entrega registrada com sucesso.' : 'Enviando comprovantes para a nuvem'}
+      </Text>
 
-      <View style={styles.list}>
-        <StepItem currentStep={1} text="Validando informações" />
-        <StepItem currentStep={2} text="Enviando fotos" />
-        <StepItem currentStep={3} text="Salvando dados" />
-        <StepItem currentStep={4} text="Sincronizando" />
+      <View style={styles.card}>
+        <StepItem currentStep={1} text="Validando pacote" />
+        <View style={styles.divider} />
+        <StepItem currentStep={2} text="Fazendo upload das fotos" />
+        <View style={styles.divider} />
+        <StepItem currentStep={3} text="Registrando no sistema" />
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Você pode continuar usando o aplicativo normalmente.</Text>
+        <MaterialCommunityIcons name="shield-check" size={20} color="#888" />
+        <Text style={styles.footerText}>Transmissão Segura</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111111', padding: 32, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: '#0A0A0A', padding: 24, justifyContent: 'center' },
   iconContainer: { alignItems: 'center', marginBottom: 24 },
-  title: { color: '#FFF', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  subtitle: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 48 },
-  list: { gap: 24 },
-  stepItem: { flexDirection: 'row', alignItems: 'center' },
-  stepTextContainer: { marginLeft: 16 },
-  stepText: { color: '#888', fontSize: 16, fontWeight: 'bold' },
-  stepTextActive: { color: '#FFF' },
-  stepSubtext: { color: '#888', fontSize: 12, marginTop: 4 },
-  footer: { marginTop: 64, borderWidth: 1, borderColor: '#333', borderRadius: 12, padding: 16 },
-  footerText: { color: '#888', fontSize: 12, textAlign: 'center' },
+  title: { color: '#FFF', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 8, letterSpacing: -0.5 },
+  subtitle: { color: '#888', fontSize: 16, textAlign: 'center', marginBottom: 48 },
+  
+  card: { backgroundColor: '#141414', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#222' },
+  stepItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  stepTextContainer: { marginLeft: 16, flex: 1 },
+  stepText: { color: '#666', fontSize: 16, fontWeight: '600' },
+  stepTextActive: { color: '#FFF', fontWeight: 'bold' },
+  stepSubtext: { color: '#FFD100', fontSize: 12, marginTop: 4, fontWeight: '600' },
+  stepSubtextDone: { color: '#16A34A', fontSize: 12, marginTop: 4, fontWeight: '600' },
+  
+  divider: { height: 1, backgroundColor: '#222', marginVertical: 8, marginLeft: 40 },
+  
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 48, gap: 8 },
+  footerText: { color: '#666', fontSize: 14, fontWeight: '600' },
 });
