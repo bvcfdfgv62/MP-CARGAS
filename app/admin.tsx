@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal,
 import { useEffect, useState } from 'react';
 import { supabase } from '../src/services/supabase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -11,6 +12,7 @@ const supabaseSecundario = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 export default function AdminDashboardMobile() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'entregas' | 'motoristas'>('entregas');
   
   const [session, setSession] = useState<any>(null);
@@ -201,15 +203,37 @@ export default function AdminDashboardMobile() {
     }
   };
 
+  const handleAdminLogout = async () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Deseja sair do painel administrador?')) {
+        await supabase.auth.signOut();
+        router.replace('/(auth)/login');
+      }
+    } else {
+      Alert.alert('Sair', 'Deseja sair do painel administrador?', [
+        {text: 'Cancelar', style: 'cancel'},
+        {text: 'Sair', style: 'destructive', onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/(auth)/login');
+        }}
+      ]);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER - Largura total, mas com conteúdo centralizado */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerLogo}>MP <Text style={{fontWeight: '300', color: '#333'}}>ADMIN</Text></Text>
-          <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, { backgroundColor: session ? '#4CAF50' : '#F44336' }]} />
-            <Text style={styles.headerStatus}>{session ? 'Online' : 'Offline'}</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 16}}>
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, { backgroundColor: session ? '#4CAF50' : '#F44336' }]} />
+              <Text style={styles.headerStatus}>{session ? 'Online' : 'Offline'}</Text>
+            </View>
+            <TouchableOpacity onPress={handleAdminLogout} style={{backgroundColor: '#111', padding: 8, borderRadius: 8}}>
+              <MaterialCommunityIcons name="logout" size={20} color="#FFF" />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
