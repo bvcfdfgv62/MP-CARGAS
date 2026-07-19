@@ -45,11 +45,11 @@ export default function PerfilScreen() {
   const uploadAvatar = async (base64Image: string, uri: string) => {
     setLoading(true);
     try {
-      // Usamos a mesma bucket "comprovantes" mas numa pasta avatars
+      // Usamos o bucket "entregas" que já existe, na pasta avatars
       const fileName = `avatars/${user.id}_${Date.now()}.jpg`;
       
       const { error: uploadError } = await supabase.storage
-        .from('comprovantes')
+        .from('entregas')
         .upload(fileName, decode(base64Image), {
           contentType: 'image/jpeg',
           upsert: true
@@ -57,7 +57,7 @@ export default function PerfilScreen() {
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('comprovantes').getPublicUrl(fileName);
+      const { data } = supabase.storage.from('entregas').getPublicUrl(fileName);
       const publicUrl = data.publicUrl;
 
       // Atualiza os metadados do usuário com a nova foto
