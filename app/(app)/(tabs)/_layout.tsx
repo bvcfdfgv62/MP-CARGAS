@@ -26,13 +26,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="historico"
-        options={{
-          title: 'Histórico',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="history" size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="perfil"
         options={{
           title: 'Perfil',

@@ -29,36 +29,39 @@ export default function NotaScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.successText}>Nota Fiscal encontrada!</Text>
+      <View style={styles.headerBar}>
+        <MaterialCommunityIcons name="text-box-check" size={32} color="#111" />
+        <Text style={styles.headerTitle}>Dados da Entrega</Text>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
           <View style={styles.field}>
-            <Text style={styles.label}>Número da NF</Text>
-            <Text style={styles.value}>{store.nf || 'Não informada'}</Text>
+            <Text style={styles.label}>NÚMERO DA NF</Text>
+            <Text style={styles.valueHighlight}>{store.nf || 'Não informada'}</Text>
           </View>
           <View style={styles.divider} />
           
           <View style={styles.field}>
-            <Text style={styles.label}>Cliente</Text>
+            <Text style={styles.label}>CLIENTE</Text>
             <Text style={styles.value}>{store.cliente || 'Não informado'}</Text>
           </View>
           <View style={styles.divider} />
 
           <View style={styles.field}>
-            <Text style={styles.label}>Cidade</Text>
+            <Text style={styles.label}>CIDADE DESTINO</Text>
             <Text style={styles.value}>{store.cidade || 'Não informada'}</Text>
           </View>
           <View style={styles.divider} />
 
           <View style={styles.field}>
-            <Text style={styles.label}>Data de Emissão</Text>
+            <Text style={styles.label}>DATA DE EMISSÃO</Text>
             <Text style={styles.value}>{hoje}</Text>
           </View>
           <View style={styles.divider} />
 
           <View style={styles.field}>
-            <Text style={styles.label}>Motorista</Text>
+            <Text style={styles.label}>MOTORISTA RESPONSÁVEL</Text>
             <Text style={styles.value}>{motoristaNome}</Text>
           </View>
         </View>
@@ -66,8 +69,8 @@ export default function NotaScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.btnPrimary} onPress={handleNext}>
-          <Text style={styles.btnPrimaryText}>INICIAR ENTREGA</Text>
-          <MaterialCommunityIcons name="arrow-right" size={24} color="#111" />
+          <Text style={styles.btnPrimaryText}>INICIAR ROTA DE ENTREGA</Text>
+          <MaterialCommunityIcons name="truck-fast" size={24} color="#111" />
         </TouchableOpacity>
       </View>
     </View>
@@ -75,14 +78,16 @@ export default function NotaScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111111' },
-  scroll: { padding: 24 },
-  successText: { color: '#FFD100', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 24, marginTop: 16 },
-  card: { backgroundColor: '#1C1C1C', borderRadius: 16, padding: 20 },
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  headerBar: { backgroundColor: '#FFD100', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingTop: 40, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, gap: 12 },
+  headerTitle: { fontSize: 22, fontWeight: '900', color: '#111', textTransform: 'uppercase' },
+  scroll: { padding: 24, paddingTop: 32 },
+  card: { backgroundColor: '#141414', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#222', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 12 },
   field: { marginVertical: 12 },
-  label: { color: '#888', fontSize: 14, marginBottom: 4 },
-  value: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  divider: { height: 1, backgroundColor: '#333' },
+  label: { color: '#666', fontSize: 12, fontWeight: 'bold', letterSpacing: 1, marginBottom: 4 },
+  valueHighlight: { color: '#FFD100', fontSize: 24, fontWeight: '900' },
+  value: { color: '#FFF', fontSize: 18, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: '#222', marginVertical: 8 },
   footer: { padding: 24, paddingBottom: 40 },
   btnPrimary: {
     backgroundColor: '#FFD100',
