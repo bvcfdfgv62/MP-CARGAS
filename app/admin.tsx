@@ -144,12 +144,40 @@ export default function AdminDashboardMobile() {
   };
 
   const handleDeleteDelivery = async (id: string) => {
-    if (window.confirm && !window.confirm('Tem certeza que deseja apagar esta entrega?')) return;
-    setLoading(true);
-    const { error } = await supabase.from('deliveries').delete().eq('id', id);
-    setLoading(false);
-    if (error) Alert.alert('Erro', error.message);
-    else fetchData();
+    setErrorMsg('');
+    setSuccessMsg('');
+    
+    const deleteAction = async () => {
+      setLoading(true);
+      try {
+        const { error } = await supabase.from('deliveries').delete().eq('id', id);
+        setLoading(false);
+        if (error) {
+          setErrorMsg(`Falha ao excluir: ${error.message}`);
+        } else {
+          setSuccessMsg('Entrega excluída com sucesso!');
+          fetchData();
+        }
+      } catch (err: any) {
+        setLoading(false);
+        setErrorMsg(`Erro interno: ${err.message}`);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm && window.confirm('Tem certeza que deseja apagar esta entrega?')) {
+        deleteAction();
+      }
+    } else {
+      Alert.alert(
+        'Confirmar Exclusão',
+        'Tem certeza que deseja apagar esta entrega?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Apagar', style: 'destructive', onPress: deleteAction }
+        ]
+      );
+    }
   };
 
   return (
