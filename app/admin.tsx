@@ -1,22 +1,39 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator, Image, Alert, SafeAreaView } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '../src/services/supabase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-export default function AdminDashboard() {
+// Um cliente secundário para podermos cadastrar motoristas sem deslogar o Admin
+import { createClient } from '@supabase/supabase-js';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseSecundario = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false }
+});
+
+export default function AdminDashboardMobile() {
+  const [activeTab, setActiveTab] = useState<'entregas' | 'motoristas'>('entregas');
+  
   const [session, setSession] = useState<any>(null);
   const [motoristas, setMotoristas] = useState<any[]>([]);
   const [entregas, setEntregas] = useState<any[]>([]);
   
-  // States para Formulário Único
+  // Controle de Formulários (Expansível)
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false);
+  const [showDriverForm, setShowDriverForm] = useState(false);
+
+  // States para Formulário de Entrega
   const [cpfDigitado, setCpfDigitado] = useState('');
   const [nf, setNf] = useState('');
   const [cliente, setCliente] = useState('');
   const [cidade, setCidade] = useState('');
-
-  // States para Formulário em Lote
   const [isBatchMode, setIsBatchMode] = useState(false);
-  const [batchNfs, setBatchNfs] = useState(''); // Ex: 1234, 5678, 9012
+  const [batchNfs, setBatchNfs] = useState('');
+
+  // States para Formulário de Motorista
+  const [novoMotNome, setNovoMotNome] = useState('');
+  const [novoMotCpf, setNovoMotCpf] = useState('');
+  const [novoMotSenha, setNovoMotSenha] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -29,10 +46,9 @@ export default function AdminDashboard() {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     fetchData();
 
-    // Supabase Realtime para ouvir entregas sendo feitas na rua!
-    const channel = supabase.channel('admin_realtime')
+    // Supabase Realtime
+    const channel = supabase.channel('admin_realtime_mobile')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, payload => {
-        // Atualiza a tabela chamando fetchData novamente (simplificado)
         fetchData();
       })
       .subscribe();
@@ -41,11 +57,9 @@ export default function AdminDashboard() {
   }, []);
 
   async function fetchData() {
-    // Busca motoristas
     const { data: drivers } = await supabase.from('profiles').select('*');
     if (drivers) setMotoristas(drivers);
 
-    // Busca as últimas 50 entregas para a tabela
     const { data: deliveries } = await supabase
       .from('deliveries')
       .select('*, profiles(name, cpf)')
@@ -54,7 +68,49 @@ export default function AdminDashboard() {
     if (deliveries) setEntregas(deliveries);
   }
 
-  const formatCPF = (text: string) => {
+  // ===============================
+  // FUNÇÕES DE MOTORISTAS
+  // ===============================
+  const formatCPFMotorista = (text: string) => {
+    let v = text.replace(/\D/g, "");
+    if (v.length <= 11) {
+      v = v.replace(/(\d{3})(\d)/, "$1.$2");
+      v = v.replace(/(\d{3})(\d)/, "$1.$2");
+      v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+    setNovoMotCpf(v);
+  };
+
+  const handleCreateDriver = async () => {
+    setErrorMsg(''); setSuccessMsg(''); setLoading(true);
+    const cpfLimpo = novoMotCpf.replace(/\D/g, '');
+    if (cpfLimpo.length !== 11 || !novoMotNome || !novoMotSenha) {
+      setErrorMsg('Preencha nome, CPF completo e senha.');
+      setLoading(false); return;
+    }
+
+    const email = `${cpfLimpo}@mpcargas.com`;
+    const { error } = await supabaseSecundario.auth.signUp({
+      email,
+      password: novoMotSenha,
+      options: { data: { cpf: cpfLimpo, name: novoMotNome } }
+    });
+
+    setLoading(false);
+    if (error) {
+      setErrorMsg(`Erro: ${error.message}`);
+    } else {
+      setSuccessMsg('Motorista criado com sucesso!');
+      setNovoMotNome(''); setNovoMotCpf(''); setNovoMotSenha('');
+      setShowDriverForm(false);
+      fetchData();
+    }
+  };
+
+  // ===============================
+  // FUNÇÕES DE ENTREGAS
+  // ===============================
+  const formatCPFEntrega = (text: string) => {
     let v = text.replace(/\D/g, "");
     if (v.length <= 11) {
       v = v.replace(/(\d{3})(\d)/, "$1.$2");
@@ -64,313 +120,286 @@ export default function AdminDashboard() {
     setCpfDigitado(v);
   };
 
-  const handleCreate = async () => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    setLoading(true);
-
+  const handleCreateDelivery = async () => {
+    setErrorMsg(''); setSuccessMsg(''); setLoading(true);
     const cpfLimpo = cpfDigitado.replace(/\D/g, '');
     const driver = motoristas.find(m => m.cpf === cpfLimpo);
 
     if (!driver) {
-      setErrorMsg('Motorista não encontrado pelo CPF informado.');
-      setLoading(false);
-      return;
+      setErrorMsg('Motorista não encontrado.'); setLoading(false); return;
     }
 
     if (isBatchMode) {
-      // MODO EM LOTE
       if (!batchNfs.trim() || !cliente || !cidade) {
-        setErrorMsg('Preencha as NFs, o Cliente e a Cidade destino.');
-        setLoading(false);
-        return;
+        setErrorMsg('Preencha NFs, Cliente e Cidade.'); setLoading(false); return;
       }
-
-      // Separa as notas por vírgula, espaço ou quebra de linha
       const nfsArray = batchNfs.split(/[\n, ]+/).filter(n => n.trim() !== '');
-      
-      const insertData = nfsArray.map(numeroNF => ({
-        driver_id: driver.id,
-        invoice_number: numeroNF,
-        client_name: cliente,
-        city: cidade,
-        receiver_name: '',
-        receiver_cpf: '',
-        receiver_relationship: '',
-        status: 'pendente'
+      const insertData = nfsArray.map(n => ({
+        driver_id: driver.id, invoice_number: n, client_name: cliente, city: cidade,
+        receiver_name: '', receiver_cpf: '', receiver_relationship: '', status: 'pendente'
       }));
-
       const { error } = await supabase.from('deliveries').insert(insertData);
-      
-      if (error) {
-        setErrorMsg(`Erro ao criar lote: ${error.message}`);
-      } else {
-        setSuccessMsg(`✅ Lote de ${insertData.length} entregas criadas com sucesso!`);
-        setBatchNfs('');
-      }
-
+      if (error) setErrorMsg(`Erro: ${error.message}`);
+      else { setSuccessMsg(`Lote de ${insertData.length} notas criado!`); setBatchNfs(''); setShowDeliveryForm(false); }
     } else {
-      // MODO ÚNICO
       if (!nf || !cliente || !cidade) {
-        setErrorMsg('Preencha todos os campos!');
-        setLoading(false);
-        return;
+        setErrorMsg('Preencha todos os campos!'); setLoading(false); return;
       }
-
       const { error } = await supabase.from('deliveries').insert({
-        driver_id: driver.id,
-        invoice_number: nf,
-        client_name: cliente,
-        city: cidade,
-        receiver_name: '',
-        receiver_cpf: '',
-        receiver_relationship: '',
-        status: 'pendente'
+        driver_id: driver.id, invoice_number: nf, client_name: cliente, city: cidade,
+        receiver_name: '', receiver_cpf: '', receiver_relationship: '', status: 'pendente'
       });
-
-      if (error) {
-        setErrorMsg(`Erro do Banco: ${error.message}`);
-      } else {
-        setSuccessMsg('✅ Entrega enviada para o aplicativo do motorista!');
-        setNf('');
-      }
+      if (error) setErrorMsg(`Erro: ${error.message}`);
+      else { setSuccessMsg('Entrega criada!'); setNf(''); setShowDeliveryForm(false); }
     }
+    setLoading(false); fetchData();
+  };
 
+  const handleDeleteDelivery = async (id: string) => {
+    if (window.confirm && !window.confirm('Tem certeza que deseja apagar esta entrega?')) return;
+    
+    setLoading(true);
+    const { error } = await supabase.from('deliveries').delete().eq('id', id);
     setLoading(false);
-    fetchData(); // Atualiza a tabela
+    
+    if (error) Alert.alert('Erro', error.message);
+    else fetchData();
   };
 
   return (
-    <View style={styles.container}>
-      {/* SIDEBAR */}
-      <View style={styles.sidebar}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>MP</Text>
-          <Text style={styles.logoSubText}>ADMIN</Text>
+    <SafeAreaView style={styles.container}>
+      {/* HEADER MOBILE */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerLogo}>MP<Text style={{color:'#111', fontStyle:'normal'}}>ADMIN</Text></Text>
+          <Text style={styles.headerStatus}>{session ? '🟢 Conectado' : '🔴 Offline'}</Text>
         </View>
-        <TouchableOpacity style={styles.navItemActive}>
-          <MaterialCommunityIcons name="view-dashboard" size={24} color="#111" />
-          <Text style={styles.navTextActive}>Controle de Entregas</Text>
+      </View>
+
+      {/* ABAS */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity style={[styles.tab, activeTab === 'entregas' && styles.tabActive]} onPress={() => {setActiveTab('entregas'); setErrorMsg(''); setSuccessMsg('');}}>
+          <MaterialCommunityIcons name="truck-delivery" size={20} color={activeTab === 'entregas' ? '#111' : '#666'} />
+          <Text style={[styles.tabText, activeTab === 'entregas' && styles.tabTextActive]}>Entregas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <MaterialCommunityIcons name="account-group" size={24} color="#FFF" />
-          <Text style={styles.navText}>Motoristas</Text>
+        <TouchableOpacity style={[styles.tab, activeTab === 'motoristas' && styles.tabActive]} onPress={() => {setActiveTab('motoristas'); setErrorMsg(''); setSuccessMsg('');}}>
+          <MaterialCommunityIcons name="account-group" size={20} color={activeTab === 'motoristas' ? '#111' : '#666'} />
+          <Text style={[styles.tabText, activeTab === 'motoristas' && styles.tabTextActive]}>Motoristas</Text>
         </TouchableOpacity>
       </View>
 
-      {/* MAIN CONTENT */}
-      <View style={styles.mainContent}>
-        <View style={styles.header}>
-          <Text style={styles.pageTitle}>Dashboard Operacional</Text>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{session ? '🟢 Sistema Conectado' : '🔴 Sem Sessão'}</Text>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {errorMsg ? <Text style={styles.errorBox}>{errorMsg}</Text> : null}
+        {successMsg ? <Text style={styles.successBox}>{successMsg}</Text> : null}
 
-        <ScrollView contentContainerStyle={{ padding: 24, gap: 24 }}>
-          
-          {/* CARDS SUPERIORES */}
-          <View style={styles.cardsRow}>
-            {/* FORMULÁRIO DE CRIAÇÃO */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Despachar Entregas</Text>
+        {/* ABA ENTREGAS */}
+        {activeTab === 'entregas' && (
+          <View>
+            <TouchableOpacity style={styles.actionButton} onPress={() => setShowDeliveryForm(!showDeliveryForm)}>
+              <MaterialCommunityIcons name={showDeliveryForm ? "close" : "plus"} size={24} color="#111" />
+              <Text style={styles.actionButtonText}>{showDeliveryForm ? "Cancelar" : "Nova Entrega"}</Text>
+            </TouchableOpacity>
+
+            {/* FORMULÁRIO DE ENTREGA */}
+            {showDeliveryForm && (
+              <View style={styles.formCard}>
                 <View style={styles.toggleContainer}>
-                  <TouchableOpacity 
-                    style={[styles.toggleBtn, !isBatchMode && styles.toggleActive]}
-                    onPress={() => setIsBatchMode(false)}
-                  >
+                  <TouchableOpacity style={[styles.toggleBtn, !isBatchMode && styles.toggleActive]} onPress={() => setIsBatchMode(false)}>
                     <Text style={[styles.toggleText, !isBatchMode && styles.toggleTextActive]}>Única</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.toggleBtn, isBatchMode && styles.toggleActive]}
-                    onPress={() => setIsBatchMode(true)}
-                  >
-                    <Text style={[styles.toggleText, isBatchMode && styles.toggleTextActive]}>Em Massa (Lote)</Text>
+                  <TouchableOpacity style={[styles.toggleBtn, isBatchMode && styles.toggleActive]} onPress={() => setIsBatchMode(true)}>
+                    <Text style={[styles.toggleText, isBatchMode && styles.toggleTextActive]}>Lote (Folha)</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
 
-              {errorMsg ? <Text style={styles.errorBox}>{errorMsg}</Text> : null}
-              {successMsg ? <Text style={styles.successBox}>{successMsg}</Text> : null}
-
-              <View style={styles.formRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>CPF do Motorista *</Text>
-                  <TextInput 
-                    style={styles.input} 
-                    placeholder="123.456.789-00" 
-                    value={cpfDigitado} 
-                    onChangeText={formatCPF}
-                  />
-                  {motoristas.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.driverScroll}>
-                      {motoristas.map(m => (
-                        <TouchableOpacity key={m.id} style={styles.chip} onPress={() => formatCPF(m.cpf || '')}>
-                          <Text style={styles.chipText}>{m.name}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Cliente Destino *</Text>
-                  <TextInput style={styles.input} placeholder="Ex: Mercado Atacadão" value={cliente} onChangeText={setCliente} />
-                </View>
+                <Text style={styles.label}>CPF do Motorista *</Text>
+                <TextInput style={styles.input} placeholder="123.456.789-00" value={cpfDigitado} onChangeText={formatCPFEntrega} keyboardType="numeric" />
                 
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Cidade *</Text>
-                  <TextInput style={styles.input} placeholder="Ex: São Paulo" value={cidade} onChangeText={setCidade} />
-                </View>
+                {motoristas.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                    {motoristas.map(m => (
+                      <TouchableOpacity key={m.id} style={styles.chip} onPress={() => formatCPFEntrega(m.cpf || '')}>
+                        <Text style={styles.chipText}>{m.name.split(' ')[0]}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                <Text style={styles.label}>Cliente Destino *</Text>
+                <TextInput style={styles.input} placeholder="Ex: Mercado Atacadão" value={cliente} onChangeText={setCliente} />
+
+                <Text style={styles.label}>Cidade *</Text>
+                <TextInput style={styles.input} placeholder="Ex: São Paulo" value={cidade} onChangeText={setCidade} />
+
+                {isBatchMode ? (
+                  <>
+                    <Text style={styles.label}>NFs (Cole a lista separada por vírgula) *</Text>
+                    <TextInput style={[styles.input, { height: 100, textAlignVertical: 'top' }]} placeholder="Ex: 3521, 3522..." value={batchNfs} onChangeText={setBatchNfs} multiline />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.label}>Número da NF *</Text>
+                    <TextInput style={styles.input} placeholder="Ex: 352514" value={nf} onChangeText={setNf} keyboardType="numeric" />
+                  </>
+                )}
+
+                <TouchableOpacity style={styles.submitBtn} onPress={handleCreateDelivery} disabled={loading}>
+                  {loading ? <ActivityIndicator color="#111" /> : <Text style={styles.submitBtnText}>Criar Entrega</Text>}
+                </TouchableOpacity>
               </View>
+            )}
 
-              {isBatchMode ? (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={styles.label}>Lista de Notas Fiscais (Cole aqui) *</Text>
-                  <TextInput 
-                    style={[styles.input, { height: 100, textAlignVertical: 'top' }]} 
-                    placeholder="Ex: 3521, 3522, 3523" 
-                    value={batchNfs} 
-                    onChangeText={setBatchNfs}
-                    multiline
-                  />
-                  <Text style={styles.hint}>Separe as NFs por vírgula, espaço ou pulando linha.</Text>
-                </View>
-              ) : (
-                <View style={{ marginTop: 16, width: '32%' }}>
-                  <Text style={styles.label}>Número da NF *</Text>
-                  <TextInput style={styles.input} placeholder="Ex: 352514" value={nf} onChangeText={setNf} />
-                </View>
-              )}
-
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreate} disabled={loading}>
-                {loading ? <ActivityIndicator color="#111" /> : <Text style={styles.submitBtnText}>Criar {isBatchMode ? 'Lote de Entregas' : 'Entrega'}</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* TABELA DE ACOMPANHAMENTO */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Últimas Entregas</Text>
-            
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 0.5 }]}>NF</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Motorista</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Cliente / Cidade</Text>
-              <Text style={[styles.th, { flex: 0.8 }]}>Status</Text>
-              <Text style={[styles.th, { flex: 0.5, textAlign: 'center' }]}>Ações</Text>
-            </View>
-
-            {entregas.map((e, index) => (
-              <View key={e.id} style={[styles.tr, index % 2 === 0 && styles.trEven]}>
-                <Text style={[styles.td, { flex: 0.5, fontWeight: 'bold' }]}>{e.invoice_number}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{e.profiles?.name || 'Desconhecido'}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{e.client_name} - {e.city}</Text>
-                
-                <View style={[styles.td, { flex: 0.8 }]}>
-                  {e.status === 'pendente' ? (
-                    <View style={styles.badgePendente}><Text style={styles.badgePendenteText}>🔴 Na Rua</Text></View>
-                  ) : (
-                    <View style={styles.badgeEnviada}><Text style={styles.badgeEnviadaText}>🟢 Finalizada</Text></View>
-                  )}
-                </View>
-
-                <View style={[styles.td, { flex: 0.5, alignItems: 'center' }]}>
-                  {e.status === 'enviada' && (
-                    <TouchableOpacity style={styles.viewPhotosBtn} onPress={() => setSelectedEntrega(e)}>
-                      <MaterialCommunityIcons name="image-multiple" size={18} color="#111" />
-                      <Text style={styles.viewPhotosText}>Ver Fotos</Text>
+            {/* LISTA DE ENTREGAS (CARDS) */}
+            <Text style={styles.sectionTitle}>Entregas Recentes</Text>
+            <View style={styles.cardsList}>
+              {entregas.map(e => (
+                <View key={e.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>NF: {e.invoice_number}</Text>
+                    {e.status === 'pendente' ? (
+                      <View style={styles.badgePendente}><Text style={styles.badgePendenteText}>Na Rua</Text></View>
+                    ) : (
+                      <View style={styles.badgeEnviada}><Text style={styles.badgeEnviadaText}>Finalizada</Text></View>
+                    )}
+                  </View>
+                  <Text style={styles.cardText}>🚛 {e.profiles?.name || 'Desconhecido'}</Text>
+                  <Text style={styles.cardText}>🏢 {e.client_name} - {e.city}</Text>
+                  
+                  <View style={styles.cardActions}>
+                    {e.status === 'enviada' && (
+                      <TouchableOpacity style={styles.btnVerFotos} onPress={() => setSelectedEntrega(e)}>
+                        <MaterialCommunityIcons name="image" size={16} color="#111" />
+                        <Text style={styles.btnVerFotosText}>Fotos</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.btnExcluir} onPress={() => handleDeleteDelivery(e.id)}>
+                      <MaterialCommunityIcons name="trash-can" size={16} color="#FFF" />
+                      <Text style={styles.btnExcluirText}>Excluir</Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </ScrollView>
-      </View>
+        )}
+
+        {/* ABA MOTORISTAS */}
+        {activeTab === 'motoristas' && (
+          <View>
+            <TouchableOpacity style={styles.actionButton} onPress={() => setShowDriverForm(!showDriverForm)}>
+              <MaterialCommunityIcons name={showDriverForm ? "close" : "account-plus"} size={24} color="#111" />
+              <Text style={styles.actionButtonText}>{showDriverForm ? "Cancelar" : "Cadastrar Motorista"}</Text>
+            </TouchableOpacity>
+
+            {/* FORMULÁRIO DE MOTORISTA */}
+            {showDriverForm && (
+              <View style={styles.formCard}>
+                <Text style={styles.label}>Nome Completo *</Text>
+                <TextInput style={styles.input} placeholder="Ex: João Silva" value={novoMotNome} onChangeText={setNovoMotNome} />
+                
+                <Text style={styles.label}>CPF *</Text>
+                <TextInput style={styles.input} placeholder="123.456.789-00" value={novoMotCpf} onChangeText={formatCPFMotorista} keyboardType="numeric" maxLength={14} />
+                
+                <Text style={styles.label}>Senha de Acesso *</Text>
+                <TextInput style={styles.input} placeholder="Ex: 123456" value={novoMotSenha} onChangeText={setNovoMotSenha} secureTextEntry />
+
+                <TouchableOpacity style={styles.submitBtn} onPress={handleCreateDriver} disabled={loading}>
+                  {loading ? <ActivityIndicator color="#111" /> : <Text style={styles.submitBtnText}>Criar Conta</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* LISTA DE MOTORISTAS */}
+            <Text style={styles.sectionTitle}>Equipe Cadastrada</Text>
+            <View style={styles.cardsList}>
+              {motoristas.map(m => (
+                <View key={m.id} style={styles.card}>
+                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                    <View style={styles.avatar}><MaterialCommunityIcons name="account" size={24} color="#111" /></View>
+                    <View>
+                      <Text style={styles.cardTitle}>{m.name}</Text>
+                      <Text style={styles.cardText}>CPF: {m.cpf}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
 
       {/* MODAL DE FOTOS */}
       {selectedEntrega && (
-        <Modal transparent visible animationType="fade">
+        <Modal transparent visible animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Comprovantes - NF {selectedEntrega.invoice_number}</Text>
+                <Text style={styles.modalTitle}>NF {selectedEntrega.invoice_number}</Text>
                 <TouchableOpacity onPress={() => setSelectedEntrega(null)}>
                   <MaterialCommunityIcons name="close" size={28} color="#333" />
                 </TouchableOpacity>
               </View>
-              
-              <Text style={styles.modalSubtitle}>
-                Recebedor: {selectedEntrega.receiver_name} (CPF: {selectedEntrega.receiver_cpf} - {selectedEntrega.receiver_relationship})
-              </Text>
+              <Text style={styles.modalSubtitle}>Rec: {selectedEntrega.receiver_name} ({selectedEntrega.receiver_cpf})</Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosScroll}>
+              <ScrollView style={styles.photosScroll} showsVerticalScrollIndicator={false}>
                 <View style={styles.photoBox}>
                   <Text style={styles.photoLabel}>Etiqueta</Text>
                   {selectedEntrega.label_photo_url ? (
                     <Image source={{ uri: selectedEntrega.label_photo_url }} style={styles.photoImage} />
-                  ) : <View style={styles.photoPlaceholder}><Text>Sem foto</Text></View>}
+                  ) : <Text>Sem foto</Text>}
                 </View>
                 <View style={styles.photoBox}>
                   <Text style={styles.photoLabel}>Nota Fiscal</Text>
                   {selectedEntrega.invoice_photo_url ? (
                     <Image source={{ uri: selectedEntrega.invoice_photo_url }} style={styles.photoImage} />
-                  ) : <View style={styles.photoPlaceholder}><Text>Sem foto</Text></View>}
+                  ) : <Text>Sem foto</Text>}
                 </View>
                 <View style={styles.photoBox}>
                   <Text style={styles.photoLabel}>Produto</Text>
                   {selectedEntrega.product_photo_url ? (
                     <Image source={{ uri: selectedEntrega.product_photo_url }} style={styles.photoImage} />
-                  ) : <View style={styles.photoPlaceholder}><Text>Sem foto</Text></View>}
+                  ) : <Text>Sem foto</Text>}
                 </View>
+                <View style={{height: 40}} />
               </ScrollView>
             </View>
           </View>
         </Modal>
       )}
-
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: 'row', backgroundColor: '#F0F2F5' },
-  sidebar: { width: 250, backgroundColor: '#111111', padding: 24 },
-  logoContainer: { marginBottom: 48 },
-  logoText: { fontSize: 32, fontWeight: '900', color: '#FFD100', fontStyle: 'italic' },
-  logoSubText: { fontSize: 14, color: '#FFF', fontWeight: 'bold' },
-  navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, gap: 12 },
-  navItemActive: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#FFD100', gap: 12, marginBottom: 8 },
-  navText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-  navTextActive: { color: '#111', fontSize: 16, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#F0F2F5' },
+  header: { backgroundColor: '#FFD100', padding: 24, paddingBottom: 16, paddingTop: 40 },
+  headerLogo: { fontSize: 24, fontWeight: '900', color: '#111', fontStyle: 'italic' },
+  headerStatus: { fontSize: 12, fontWeight: 'bold', color: '#555', marginTop: 4 },
   
-  mainContent: { flex: 1 },
-  header: { backgroundColor: '#FFF', paddingHorizontal: 32, paddingVertical: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
-  pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111' },
-  statusBadge: { backgroundColor: '#F0F0F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  statusText: { fontSize: 12, fontWeight: 'bold', color: '#555' },
+  tabsContainer: { flexDirection: 'row', backgroundColor: '#FFF', elevation: 2, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.1, shadowRadius: 2 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  tabActive: { borderBottomColor: '#FFD100' },
+  tabText: { fontSize: 14, fontWeight: 'bold', color: '#666' },
+  tabTextActive: { color: '#111' },
 
-  cardsRow: { flexDirection: 'row', gap: 24 },
-  card: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#111' },
-  
-  toggleContainer: { flexDirection: 'row', backgroundColor: '#F5F5F5', borderRadius: 8, padding: 4 },
-  toggleBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+
+  actionButton: { backgroundColor: '#FFD100', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12, gap: 8, marginBottom: 16 },
+  actionButtonText: { fontSize: 16, fontWeight: 'bold', color: '#111' },
+
+  formCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 24, elevation: 2 },
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#F5F5F5', borderRadius: 8, padding: 4, marginBottom: 16 },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 6, alignItems: 'center' },
   toggleActive: { backgroundColor: '#FFD100' },
   toggleText: { color: '#666', fontWeight: '600', fontSize: 14 },
   toggleTextActive: { color: '#111', fontWeight: 'bold' },
-
-  formRow: { flexDirection: 'row', gap: 16 },
-  label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 8, padding: 12, fontSize: 14, color: '#111' },
-  hint: { fontSize: 12, color: '#888', marginTop: 4 },
   
-  driverScroll: { marginTop: 8, flexDirection: 'row' },
-  chip: { backgroundColor: '#F0F0F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8 },
-  chipText: { fontSize: 12, color: '#333', fontWeight: '600' },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 8, marginTop: 12 },
+  input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 8, padding: 14, fontSize: 14, color: '#111' },
+  
+  chipScroll: { marginTop: 8, flexDirection: 'row', maxHeight: 40 },
+  chip: { backgroundColor: '#F0F0F0', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, marginRight: 8, justifyContent: 'center' },
+  chipText: { fontSize: 12, color: '#333', fontWeight: 'bold' },
 
   submitBtn: { backgroundColor: '#111', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 24 },
   submitBtnText: { color: '#FFD100', fontSize: 16, fontWeight: 'bold' },
@@ -378,30 +407,33 @@ const styles = StyleSheet.create({
   errorBox: { backgroundColor: '#FFEBEB', color: '#D32F2F', padding: 16, borderRadius: 8, marginBottom: 16, fontWeight: 'bold' },
   successBox: { backgroundColor: '#E8F5E9', color: '#2E7D32', padding: 16, borderRadius: 8, marginBottom: 16, fontWeight: 'bold' },
 
-  // TABELA
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#E5E5E5', paddingBottom: 12, marginBottom: 8 },
-  th: { fontSize: 12, fontWeight: 'bold', color: '#888', textTransform: 'uppercase' },
-  tr: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
-  trEven: { backgroundColor: '#FAFAFA' },
-  td: { fontSize: 14, color: '#333' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111', marginBottom: 12, marginTop: 8 },
+  cardsList: { gap: 12 },
+  card: { backgroundColor: '#FFF', padding: 16, borderRadius: 12, elevation: 1 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#111' },
+  cardText: { fontSize: 14, color: '#555', marginBottom: 4 },
   
-  badgePendente: { backgroundColor: '#FFF3E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  badgePendente: { backgroundColor: '#FFF3E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgePendenteText: { color: '#E65100', fontSize: 12, fontWeight: 'bold' },
-  badgeEnviada: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  badgeEnviada: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeEnviadaText: { color: '#2E7D32', fontSize: 12, fontWeight: 'bold' },
-  
-  viewPhotosBtn: { flexDirection: 'row', backgroundColor: '#FFD100', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, alignItems: 'center', gap: 6 },
-  viewPhotosText: { fontSize: 12, fontWeight: 'bold', color: '#111' },
 
-  // MODAL
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 40 },
-  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 32, width: '100%', maxWidth: 1000, maxHeight: '90%' },
+  cardActions: { flexDirection: 'row', gap: 8, marginTop: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0', paddingTop: 12 },
+  btnVerFotos: { flex: 1, backgroundColor: '#FFD100', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 8, gap: 6 },
+  btnVerFotosText: { fontSize: 12, fontWeight: 'bold', color: '#111' },
+  btnExcluir: { flex: 1, backgroundColor: '#D32F2F', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 8, gap: 6 },
+  btnExcluirText: { fontSize: 12, fontWeight: 'bold', color: '#FFF' },
+
+  avatar: { width: 48, height: 48, backgroundColor: '#F0F0F0', borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: 24, fontWeight: 'bold', color: '#111' },
-  modalSubtitle: { fontSize: 16, color: '#666', marginBottom: 24 },
-  photosScroll: { gap: 16 },
-  photoBox: { gap: 8 },
-  photoLabel: { fontSize: 16, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  photoImage: { width: 300, height: 400, borderRadius: 12, resizeMode: 'cover', backgroundColor: '#000' },
-  photoPlaceholder: { width: 300, height: 400, borderRadius: 12, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center' }
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111' },
+  modalSubtitle: { fontSize: 14, color: '#666', marginBottom: 16 },
+  photosScroll: { flex: 1 },
+  photoBox: { marginBottom: 24 },
+  photoLabel: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 8 },
+  photoImage: { width: '100%', height: 300, borderRadius: 12, resizeMode: 'contain', backgroundColor: '#F5F5F5' },
 });
